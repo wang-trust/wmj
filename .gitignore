@@ -2,4 +2,5 @@ dist/
 .vscode/
 *.log
 *.ui
-__pycache__\
+__pycache__/
+*.pyc
