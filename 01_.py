@@ -6,6 +6,7 @@ from ui import Ui_MainWindow
 import time
 import re
 import docx
+from win32com import client
 
 
 
@@ -126,9 +127,11 @@ class Example(QMainWindow, Ui_MainWindow):
                 if(titleLevel < 2):
                     self.resultArray.append([filepath, 2, '公开密级中存在内部文件'])
                     return
-            elif(each.find('公开') == -1 or each.endswith('公开')):
+            elif(each.find('公开') == 0 or each.endswith('公开')):
                 if(titleLevel > 1):
                     titleLevel = 1
+            else:
+                titleLevel = titleLevel
         # 获取文件的密级设定
         suffix = os.path.splitext(filenamelist[-1])
         nameLevel = 0;
@@ -149,6 +152,8 @@ class Example(QMainWindow, Ui_MainWindow):
             self.resultArray.append([filepath, 2, '存在exe文件'])
         elif(suffix[1] == '.docx'):
             contentLevel = self.checkDOCX(filepath)
+        elif(suffix[1] == '.doc'):
+            contentLevel = self.checkDOC(filepath)
         else:
             contentLevel = -1
 
@@ -192,24 +197,80 @@ class Example(QMainWindow, Ui_MainWindow):
             self.resultArray.append([filepath, 0, 'OK'])
 
 
+    def checkDOC(self, filepath):
+        try:
+            a = os.path.split(filepath)
+            b = os.path.splitext(a[-1])[0]
+            newdocx = "{}\\{}----.docx".format(a[0], b)
+        except Exception as e:
+            self.resultArray.append([filepath, 2, e])
+            return 0
+        try:
+            word = client.Dispatch("Word.Application")
+            doc = word.Documents.Open(filepath)
+            doc.SaveAs(newdocx, 12)
+            doc.Close()
+            word.Quit()
+            resultLevel = self.checkDOCX(newdocx, 0)
+            time.sleep(1)
+            os.remove(newdocx)
+        except Exception as e:
+            self.resultArray.append([filepath, 2, e])
+            resultLevel = 0
+        return resultLevel
 
-    def checkDOCX(self, filepath):
-        newdocx = docx.Document(filepath)
-        contentlist = []
+
+    def checkDOCX(self, filepath, flag = 1):
         contentText = ''
+        resultLevel = 0
+        try:
+            newdocx = docx.Document(filepath)
+        except Exception as e:
+            if(flag):
+                self.resultArray.append([filepath, 2, e])
+            return 0
+
         # read text
         for each in newdocx.paragraphs:
             contentText += each.text
-        print(contentText)
+        content = re.sub('[\t\n- ]+', '', contentText)
+        if(content.find('秘密') != -1 \
+            or content.find('机密') != -1 \
+            or content.find('绝密') != -1 ):
+            resultLevel = 3
+            return resultLevel
+        elif(content.find('内部') != -1):
+            resultLevel = 2
+        elif(content.find('公开') == 0):
+            resultLevel = 1
+        else:
+            resultLevel = 0
         # read tables
         tables = newdocx.tables
         for t in tables:
             for i in range(0, len(t.rows)):
                 for j in range(0, len(t.columns)):
-                    print(t.cell(i, j).text)
-
-
-        return 0
+                    cellText = t.cell(i, j).text
+                    cellText = re.sub('[ \(\)（）-]+', '', cellText)
+                    if(cellText.find('秘密') != -1 \
+                        or cellText.find('机密') != -1 \
+                        or cellText.find('绝密') != -1 ):
+                        resultLevel = 3
+                        return resultLevel
+                    elif(cellText.find('内部') != -1):
+                        resultLevel = 2
+        if(len(newdocx.tables)):
+            t0 = newdocx.tables[0]
+            for i in range(0, len(t0.rows)):
+                for j in range(0, len(t0.columns)):
+                    cellText = t0.cell(i, j).text
+                    cellText = re.sub('[ \(\)（）-]+', '', cellText)
+                    if(cellText.find('公开') == 0):
+                        if(resultLevel == 2):
+                            return 2
+                        else:
+                            return 1
+        return resultLevel
 
     def checkTXT(self, filepath):
         gbkflag = 0
@@ -218,7 +279,7 @@ class Example(QMainWindow, Ui_MainWindow):
         try:
             with open(filepath, 'r', encoding='gbk') as f:
                 content = f.read(-1)
-                content = re.sub('[\t\n ]+', '', content)
+                content = re.sub('[\t\n- ]+', '', content)
             gbkflag = 1
         except Exception as e:
             print(e)
@@ -230,7 +291,7 @@ class Example(QMainWindow, Ui_MainWindow):
             try:
                 with open(filepath, 'r', encoding='utf-8') as f:
                     content = f.read(-1)
-                    content = re.sub('[\t\n ]+', '', content)
+                    content = re.sub('[\t\n- ]+', '', content)
                 utf8flag = 1
             except Exception as e:
                 print(e)
