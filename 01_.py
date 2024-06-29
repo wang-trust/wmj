@@ -7,6 +7,7 @@ import time
 import re
 import docx
 from win32com import client
+import openpyxl
 
 
 
@@ -19,6 +20,7 @@ class Example(QMainWindow, Ui_MainWindow):
         self.ctrlConnect()
         self.defVar()
 
+    # UI contorl function --------------------------------
     def defVar(self):
         self.fileCheckPath = ''
         self.fileWritePath = ''
@@ -29,6 +31,10 @@ class Example(QMainWindow, Ui_MainWindow):
         self.writeLevel = 1
         # [, num, ] 0:INFO 1:WARING 2:ERROR 3:FATAL
         self.resultArray = []
+
+        # for re.sub replace other symbols
+        self.resymbols2Title = '[ \(\)（）\[\]【】-]+'
+        self.resymbols2Text = '[\t\n- ]+'
 
         # for debug
         self.log = open('run.log', 'a', encoding='utf-8')
@@ -46,14 +52,27 @@ class Example(QMainWindow, Ui_MainWindow):
     def setCheckPath(self):
         file_path = QFileDialog.getExistingDirectory(self, "选择文件夹", "./", QFileDialog.ShowDirsOnly)
         if file_path:
+            # Using relative paths
+            fp = os.path.split(file_path)
+            if(fp[1]):
+                os.chdir(fp[0])
+                self.fileCheckPath = fp[1]
+            else:
+                self.fileCheckPath = file_path
             self.lineEdit.setText(file_path)
-            self.fileCheckPath = file_path
+
 
     def setWritePath(self):
         file_path = QFileDialog.getExistingDirectory(self, "选择文件夹", "./", QFileDialog.ShowDirsOnly)
         if file_path:
+            # Using relative paths
+            fp = os.path.split(file_path)
+            if(fp[1]):
+                os.chdir(fp[0])
+                self.fileWritePath = fp[1]
+            else:
+                self.fileWritePath = file_path
             self.lineEdit_2.setText(file_path)
-            self.fileWritePath = file_path
 
     def exchangeCheckPath(self):
         file_path = self.lineEdit.text().strip()
@@ -78,8 +97,10 @@ class Example(QMainWindow, Ui_MainWindow):
             self.writeLevel = 2
         else:
             self.writeLevel = 1
+    # UI contorl function --------------------------------
     
 
+    # core business------------------------------------
     # core logical for check dic
     def runCheckPath(self):
         # clear
@@ -114,7 +135,7 @@ class Example(QMainWindow, Ui_MainWindow):
 
     def checkFile(self, filepath):
         # clear other symbols
-        newfilepath = re.sub('[ \(\)（）-]+', '', filepath)
+        newfilepath = re.sub(self.resymbols2Title, '', filepath)
         if(filepath.find('秘密') != -1 or newfilepath.find('绝密') != -1 or \
             newfilepath.find('机密') != -1):
             self.resultArray.append([filepath, 3, '出现秘密字眼'])
@@ -154,6 +175,8 @@ class Example(QMainWindow, Ui_MainWindow):
             contentLevel = self.checkDOCX(filepath)
         elif(suffix[1] == '.doc'):
             contentLevel = self.checkDOC(filepath)
+        elif(suffix[1] == '.xlsx'):
+            contentLevel = self.checkXLSX(filepath)
         else:
             contentLevel = -1
 
@@ -197,6 +220,21 @@ class Example(QMainWindow, Ui_MainWindow):
             self.resultArray.append([filepath, 0, 'OK'])
 
 
+    def checkXLSX(self, filepath):
+        # workbook = openpyxl.load_workbook(filepath + '123.xlsx')
+        resultLevel = 0
+        try:
+            wb = openpyxl.load_workbook(filepath)
+        except Exception as e:
+            self.resultArray.append([filepath, 2, e])
+
+        # 获取各个工作表
+
+        # for 遍历分析
+
+        return resultLevel
+
+
     def checkDOC(self, filepath):
         try:
             a = os.path.split(filepath)
@@ -233,7 +271,7 @@ class Example(QMainWindow, Ui_MainWindow):
         # read text
         for each in newdocx.paragraphs:
             contentText += each.text
-        content = re.sub('[\t\n- ]+', '', contentText)
+        content = re.sub(self.resymbols2Text, '', contentText)
         if(content.find('秘密') != -1 \
             or content.find('机密') != -1 \
             or content.find('绝密') != -1 ):
@@ -251,7 +289,7 @@ class Example(QMainWindow, Ui_MainWindow):
             for i in range(0, len(t.rows)):
                 for j in range(0, len(t.columns)):
                     cellText = t.cell(i, j).text
-                    cellText = re.sub('[ \(\)（）-]+', '', cellText)
+                    cellText = re.sub(self.resymbols2Title, '', cellText)
                     if(cellText.find('秘密') != -1 \
                         or cellText.find('机密') != -1 \
                         or cellText.find('绝密') != -1 ):
@@ -264,7 +302,7 @@ class Example(QMainWindow, Ui_MainWindow):
             for i in range(0, len(t0.rows)):
                 for j in range(0, len(t0.columns)):
                     cellText = t0.cell(i, j).text
-                    cellText = re.sub('[ \(\)（）-]+', '', cellText)
+                    cellText = re.sub(self.resymbols2Title, '', cellText)
                     if(cellText.find('公开') == 0):
                         if(resultLevel == 2):
                             return 2
@@ -279,10 +317,10 @@ class Example(QMainWindow, Ui_MainWindow):
         try:
             with open(filepath, 'r', encoding='gbk') as f:
                 content = f.read(-1)
-                content = re.sub('[\t\n- ]+', '', content)
+                content = re.sub(self.resymbols2Text, '', content)
             gbkflag = 1
         except Exception as e:
-            print(e)
+            # print(e)
             gbkflag = 0
             content = None
             self.resultArray.append([filepath, 0, '.txt not gbk encode'])
@@ -291,10 +329,10 @@ class Example(QMainWindow, Ui_MainWindow):
             try:
                 with open(filepath, 'r', encoding='utf-8') as f:
                     content = f.read(-1)
-                    content = re.sub('[\t\n- ]+', '', content)
+                    content = re.sub(self.resymbols2Text, '', content)
                 utf8flag = 1
             except Exception as e:
-                print(e)
+                # print(e)
                 self.resultArray.append([filepath, 0, '.txt not utf-8 encode'])
                 content = None
                 utf8flag = 0
@@ -313,12 +351,13 @@ class Example(QMainWindow, Ui_MainWindow):
             self.resultArray.append([filepath, 1, '.txt open fail'])
             return 0
         
+    # core business------------------------------------
 
 
 
 
 
-
+    # helper function --------------------------------------
     def writeLog(self):
         infonum = 0
         warningnum = 0
@@ -329,16 +368,16 @@ class Example(QMainWindow, Ui_MainWindow):
             f.write('Run time: {0}\n'.format(timestr))
             for each in self.resultArray:
                 if(each[1] == 0):
-                    f.write('INFO: {0} {1}\n'.format(each[0], each[2]))
+                    f.write('INFO: {0} {1}\n'.format(os.path.abspath(each[0]), each[2]))
                     infonum += 1
                 elif(each[1] == 1):
-                    f.write('WARNING: {0} {1}\n'.format(each[0], each[2]))
+                    f.write('WARNING: {0} {1}\n'.format(os.path.abspath(each[0]), each[2]))
                     warningnum += 1
                 elif(each[1] == 2):
-                    f.write('ERROR: {0} {1}\n'.format(each[0], each[2]))
+                    f.write('ERROR: {0} {1}\n'.format(os.path.abspath(each[0]), each[2]))
                     errornum += 1
                 elif(each[1] == 3):
-                    f.write('FATAL: {0} {1}\n'.format(each[0], each[2]))
+                    f.write('FATAL: {0} {1}\n'.format(os.path.abspath(each[0]), each[2]))
                     fatalnum += 1
             
             f.write('\nResult: INFO: {0}, WARNING: {1}, ERROR: {2}, FATAL: {3}\n\n' \
@@ -368,6 +407,7 @@ class Example(QMainWindow, Ui_MainWindow):
         for each in l:
             print(each)
 
+    # helper function --------------------------------------
 
 
 
