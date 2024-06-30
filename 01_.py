@@ -26,14 +26,14 @@ class Example(QMainWindow, Ui_MainWindow):
         self.fileWritePath = ''
         self.fileCheckArray = []
         self.fileWriteArray = []
-        # 1: 公开   2：内部
-        self.checkLevel = 1
-        self.writeLevel = 1
+        # 1: 公开   2：内部  4: 秘密及以上
+        self.checkLevel = 0x1
+        self.writeLevel = 0x1
         # [, num, ] 0:INFO 1:WARING 2:ERROR 3:FATAL
         self.resultArray = []
 
         # for re.sub replace other symbols
-        self.resymbols2 = '[\t\n- \(\)（）\[\]【】]+'
+        self.resymbols2 = '[\t\n\- \(\)（）\[\]【】]+'
         # self.resymbols2Text = '[\t\n- ]+'
 
         # for debug
@@ -88,16 +88,16 @@ class Example(QMainWindow, Ui_MainWindow):
     def setCheckLevel(self):
         com = self.comboBox.currentText()
         if(com == '内部'):
-            self.checkLevel = 2
+            self.checkLevel = 0x2
         else:
-            self.checkLevel = 1
+            self.checkLevel = 0x1
 
     def setWriteLevel(self):
         com = self.comboBox_3.currentText()
         if(com == '内部'):
-            self.writeLevel = 2
+            self.writeLevel = 0x2
         else:
-            self.writeLevel = 1
+            self.writeLevel = 0x1
     # UI contorl function --------------------------------
     
 
@@ -136,90 +136,120 @@ class Example(QMainWindow, Ui_MainWindow):
 
     def checkFile(self, filepath):
         # clear other symbols
+        titleLevel = self.checkLevel
+        nameLevel = 0
+        contentLevel = -1
+        nameTrueLevel = 0
+        contentTrueLevel = 0
+
         newfilepath = re.sub(self.resymbols2, '', filepath)
         if(filepath.find('秘密') != -1 or newfilepath.find('绝密') != -1 or \
             newfilepath.find('机密') != -1):
-            self.resultArray.append([filepath, 3, '出现秘密字眼'])
+            self.resultArray.append([filepath, 3, '文件名出现秘密字眼'])
             return
         # 获取文件允许的最高密级
-        titleLevel = self.checkLevel
         filenamelist = newfilepath.split('\\')
         for each in filenamelist[:-1]:
-            if(each.find('内部') == 0 or each.endswith('内部')):
+            if(each.find('内部') != -1):
                 if(titleLevel < 2):
                     self.resultArray.append([filepath, 2, '公开密级中存在内部文件'])
                     return
-            elif(each.find('公开') == 0 or each.endswith('公开')):
+            elif(each.find('公开') != -1):
                 if(titleLevel > 1):
                     titleLevel = 1
-            else:
-                titleLevel = titleLevel
+
         # 获取文件的密级设定
         suffix = os.path.splitext(filenamelist[-1])
-        nameLevel = 0;
+        if(suffix[0].find('内部') != -1):
+            nameLevel |= 2
+        if(suffix[0].find('公开') != -1):
+            nameLevel |= 1
         if(suffix[0].find('内部') == 0 or suffix[0].endswith('内部')):
-            nameLevel = 2
+            nameTrueLevel = 2
         elif(suffix[0].find('公开') == 0 or suffix[0].endswith('公开')):
-            nameLevel = 1
-        else:
-            nameLevel = 0;
+            nameTrueLevel = 1
         
         # read text-file
-        contentLevel = -1
         if(suffix[1] == '.txt'):
-            contentLevel = self.checkTXT(filepath)
-        elif(suffix[1] == '.pdf'):
-            self.resultArray.append([filepath, 2, 'pdf文件需要手动确认'])
-        elif(suffix[1] == '.exe'):
-            self.resultArray.append([filepath, 2, '存在exe文件'])
-        # elif(suffix[1] == '.docx'):
-        #     contentLevel = self.checkDOCX(filepath)
+            contentLevel, contentTrueLevel = self.checkTXT(filepath)
+        elif(suffix[1] == '.docx'):
+            contentLevel, contentTrueLevel = self.checkDOCX(filepath)
         # elif(suffix[1] == '.doc'):
         #     contentLevel = self.checkDOC(filepath)
         # elif(suffix[1] == '.xlsx'):
         #     contentLevel = self.checkXLSX(filepath)
+        # elif(suffix[1] == '.pdf'):
+        #     self.resultArray.append([filepath, 2, 'pdf文件需要手动确认'])
+        # elif(suffix[1] == '.exe'):
+        #     self.resultArray.append([filepath, 2, '存在exe文件'])
         else:
             contentLevel = -1
 
         # make result
-        if(nameLevel == 3 or contentLevel == 3):
-            self.resultArray.append([filepath, 3, '出现秘密字眼'])
-        elif(nameLevel == 0):
-            if(contentLevel <= 0):
-                self.resultArray.append([filepath, 2, '未标密级'])
-            elif(contentLevel > titleLevel):
-                self.resultArray.append([filepath, 2, '文件中存在内部字眼'])
-            elif(contentLevel == 2):
-                self.resultArray.append([filepath, 1, '文件名和文件内仅一处标密，需打开文件确认'])
-            elif(contentLevel == 1):
-                self.resultArray.append([filepath, 0, 'OK'])
-            else:
-                self.resultArray.append([filepath, 2, '未知错误'])
-        elif(nameLevel == 2):
-            if(titleLevel == 1):
-                self.resultArray.append([filepath, 2, '公开密级中存在内部文件'])
-            elif(contentLevel == 2 or contentLevel == -1):
-                self.resultArray.append([filepath, 0, 'OK'])
-            elif(contentLevel == 1):
-                self.resultArray.append([filepath, 2, '标题与内容密级不符'])
-            elif(contentLevel == 0):
-                self.resultArray.append([filepath, 1, '文件内容中缺少密级'])
-        elif(nameLevel == 1):
-            if(contentLevel == 1 or contentLevel == -1):
-                self.resultArray.append([filepath, 0, 'OK'])
-            elif(contentLevel == 2):
-                self.resultArray.append([filepath, 2, '标题与内容密级不符'])
-            elif(contentLevel == 0):
-                self.resultArray.append([filepath, 1, '文件内容中缺少密级'])
-        # elif(nameLevel > titleLevel):
-        #     self.resultArray.append([filepath, 2, '公开密级中存在内部文件'])
-        # elif(contentLevel > titleLevel):
-        #     self.resultArray.append([filepath, 2, '文件中存在内部字眼'])
-        # elif(nameLevel != 0 and contentLevel >= 1 and nameLevel != contentLevel):
-        #     self.resultArray.append([filepath, 2, '文件名与文件内部标密不一致'])
-        else:
-            self.resultArray.append([filepath, 0, 'OK'])
+        self.judgeResult(filepath, titleLevel, nameLevel, contentLevel, nameTrueLevel, contentTrueLevel)
+    
 
+    def judgeResult(self, filepath, titleLevel, nameLevel, contentLevel, nameTrueLevel, contentTrueLevel):
+        if(contentLevel >= 4):
+            self.resultArray.append([filepath, 3, '文件内部出现秘密字眼'])
+        elif(contentLevel == 3):
+            self.resultArray.append([filepath, 2, '文件内部同时出现内部和公开'])
+        elif(nameLevel == 3):
+            self.resultArray.append([filepath, 2, '文件名中同时出现内部和公开'])
+        elif(contentLevel == 2):
+            if(nameLevel == 0):
+                if(titleLevel == 2):
+                    self.resultArray.append([filepath, 1, '文件名和文件内仅一处标密，需打开文件确认'])
+                else:
+                    self.resultArray.append([filepath, 2, '公开文件中出现内部字眼'])
+            elif(nameLevel == 1):
+                self.resultArray.append([filepath, 2, '公开文件中出现内部字眼'])
+            elif(nameLevel == 2):
+                if(titleLevel == 2):
+                    if(nameTrueLevel == 2 and contentTrueLevel == 2):
+                        self.resultArray.append([filepath, 0, 'OK'])
+                    else:
+                        self.resultArray.append([filepath, 2, '密级标注错误'])
+                else:
+                    self.resultArray.append([filepath, 2, '公开密级中出现内部文件'])
+        elif(contentLevel == 1):
+            if(nameLevel == 0):
+                self.resultArray.append([filepath, 1, '文件名和文件内仅一处标密，需打开文件确认'])
+            elif(nameLevel == 1):
+                if(nameTrueLevel > 0 and contentTrueLevel > 0):
+                    self.resultArray.append([filepath, 0, 'OK'])
+                else:
+                    self.resultArray.append([filepath, 2, '密级标注错误'])
+            elif(nameLevel == 2):
+                if(titleLevel == 2):
+                    self.resultArray.append([filepath, 2, '内部文件中出现公开字眼'])
+                else:
+                    self.resultArray.append([filepath, 2, '公开密级中出现内部文件'])
+        elif(contentLevel == 0):
+            if(nameLevel == 0):
+                self.resultArray.append([filepath, 2, '文件未标密'])
+            elif(nameLevel == 1):
+                self.resultArray.append([filepath, 1, '文件名和文件内仅一处标密，需打开文件确认'])
+            elif(nameLevel == 2):
+                self.resultArray.append([filepath, 1, '文件名和文件内仅一处标密，需打开文件确认'])
+        elif(contentLevel == -1):
+            if(nameLevel == 0):
+                self.resultArray.append([filepath, 2, '文件未标密'])
+            elif(nameLevel == 1):
+                if(nameTrueLevel > 0):
+                    self.resultArray.append([filepath, 0, 'OK'])
+                else:
+                    self.resultArray.append([filepath, 2, '密级标注错误'])
+            elif(nameLevel == 2):
+                if(titleLevel == 2):
+                    if(nameTrueLevel == 2):
+                        self.resultArray.append([filepath, 0, 'OK'])
+                    else:
+                        self.resultArray.append([filepath, 2, '密级标注错误'])
+                else:
+                    self.resultArray.append([filepath, 2, '公开密级中出现内部文件'])
+        else:
+            self.resultArray.append([filepath, 2, '未知错误'])
 
     def checkXLSX(self, filepath):
         # workbook = openpyxl.load_workbook(filepath + '123.xlsx')
@@ -272,7 +302,6 @@ class Example(QMainWindow, Ui_MainWindow):
 
         return resultLevel
 
-
     def checkDOC(self, filepath):
         try:
             a = os.path.split(filepath)
@@ -295,16 +324,16 @@ class Example(QMainWindow, Ui_MainWindow):
             resultLevel = 0
         return resultLevel
 
-
     def checkDOCX(self, filepath, flag = 1):
         contentText = ''
         resultLevel = 0
+        resultTrueLevel = 0
         try:
             newdocx = docx.Document(filepath)
         except Exception as e:
             if(flag):
                 self.resultArray.append([filepath, 2, e])
-            return 0
+            return resultLevel, resultTrueLevel
 
         # read text
         for each in newdocx.paragraphs:
@@ -313,14 +342,11 @@ class Example(QMainWindow, Ui_MainWindow):
         if(content.find('秘密') != -1 \
             or content.find('机密') != -1 \
             or content.find('绝密') != -1 ):
-            resultLevel = 3
-            return resultLevel
-        elif(content.find('内部') != -1):
-            resultLevel = 2
-        elif(content.find('公开') == 0):
-            resultLevel = 1
-        else:
-            resultLevel = 0
+            resultLevel |= 0x04
+        if(content.find('内部') != -1):
+            resultLevel |= 0x02
+        if(content.find('公开') != -1):
+            resultLevel |= 0x01
         # read tables
         tables = newdocx.tables
         for t in tables:
@@ -331,28 +357,36 @@ class Example(QMainWindow, Ui_MainWindow):
                     if(cellText.find('秘密') != -1 \
                         or cellText.find('机密') != -1 \
                         or cellText.find('绝密') != -1 ):
-                        resultLevel = 3
-                        return resultLevel
-                    elif(cellText.find('内部') != -1):
-                        resultLevel = 2
-        if(len(newdocx.tables)):
-            t0 = newdocx.tables[0]
-            for i in range(0, len(t0.columns)):
-                for j in range(0, len(t0.rows)):
-                    cellText = t0.cell(j, i).text
-                    cellText = re.sub(self.resymbols2, '', cellText)
-                    if(cellText.find('公开') == 0):
-                        if(resultLevel == 2):
-                            self.resultArray.append([filepath, 2, '公开密级中存在内部字眼'])
-                        return 1
-        return resultLevel
+                        resultLevel |= 0x04
+                    if(cellText.find('内部') != -1):
+                        resultLevel |= 0x02
+                    if(cellText.find('公开') != -1):
+                        resultLevel |= 0x01
 
+        if(content.find('内部') == 0):
+            resultTrueLevel = 2
+        elif(content.find('公开') == 0):
+            resultTrueLevel = 1
+        if(not resultTrueLevel):
+            if(len(newdocx.tables)):
+                t0 = newdocx.tables[0]
+                for i in range(0, len(t0.rows)):
+                    for j in range(0, len(t0.columns)):
+                        cellText = t0.cell(i, j).text
+                        cellText = re.sub(self.resymbols2, '', cellText)
+                        if(cellText == '内部'):
+                            resultTrueLevel = 2
+                            return resultLevel, resultTrueLevel
+                        elif(cellText == '公开'):
+                            resultTrueLevel = 1
+                            return resultLevel, resultTrueLevel
+        return resultLevel, resultTrueLevel
 
     def checkTXT(self, filepath):
         gbkflag = 0
         utf8flag = 0
-        nbflag = 0
-        gkflag = 0
+        contentLevel = 0
+        contentTrueLevel = 0
         # gbk try read txt
         try:
             with open(filepath, 'r', encoding='gbk') as f:
@@ -380,24 +414,18 @@ class Example(QMainWindow, Ui_MainWindow):
             if(content.find('秘密') != -1 \
                 or content.find('机密') != -1 \
                 or content.find('绝密') != -1 ):
-                return 3
+                contentLevel |= 0x04
             if(content.find('内部') != -1):
-                nbflag = 1
+                contentLevel |= 0x02
             if(content.find('公开') != -1):
-                gkflag = 1
-            if(nbflag and gbkflag):
-                self.resultArray.append([filepath, 2, '同时存在公开和内部字眼'])
-                return 0
-            elif(nbflag):
-                return 2
-            elif(gkflag):
-                return 1
-            else:
-                return 0
+                contentLevel |= 0x01
+            if(content.find('内部') == 0):
+                contentTrueLevel = 2
+            elif(content.find('公开') == 0):
+                contentTrueLevel = 1
         else:
             self.resultArray.append([filepath, 1, '.txt open fail'])
-            return 0
-        
+        return contentLevel, contentTrueLevel
     # core business------------------------------------
 
 
