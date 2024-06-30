@@ -33,11 +33,12 @@ class Example(QMainWindow, Ui_MainWindow):
         self.resultArray = []
 
         # for re.sub replace other symbols
-        self.resymbols2Title = '[ \(\)（）\[\]【】-]+'
-        self.resymbols2Text = '[\t\n- ]+'
+        self.resymbols2 = '[\t\n- \(\)（）\[\]【】]+'
+        # self.resymbols2Text = '[\t\n- ]+'
 
         # for debug
         self.log = open('run.log', 'a', encoding='utf-8')
+        # self.runCheckPath = 'C:\\Users\\goupi\\Desktop\\qt5\\dist\\'
 
     def ctrlConnect(self):
         self.pushButton.clicked.connect(self.setCheckPath)
@@ -135,7 +136,7 @@ class Example(QMainWindow, Ui_MainWindow):
 
     def checkFile(self, filepath):
         # clear other symbols
-        newfilepath = re.sub(self.resymbols2Title, '', filepath)
+        newfilepath = re.sub(self.resymbols2, '', filepath)
         if(filepath.find('秘密') != -1 or newfilepath.find('绝密') != -1 or \
             newfilepath.find('机密') != -1):
             self.resultArray.append([filepath, 3, '出现秘密字眼'])
@@ -171,12 +172,12 @@ class Example(QMainWindow, Ui_MainWindow):
             self.resultArray.append([filepath, 2, 'pdf文件需要手动确认'])
         elif(suffix[1] == '.exe'):
             self.resultArray.append([filepath, 2, '存在exe文件'])
-        elif(suffix[1] == '.docx'):
-            contentLevel = self.checkDOCX(filepath)
-        elif(suffix[1] == '.doc'):
-            contentLevel = self.checkDOC(filepath)
-        elif(suffix[1] == '.xlsx'):
-            contentLevel = self.checkXLSX(filepath)
+        # elif(suffix[1] == '.docx'):
+        #     contentLevel = self.checkDOCX(filepath)
+        # elif(suffix[1] == '.doc'):
+        #     contentLevel = self.checkDOC(filepath)
+        # elif(suffix[1] == '.xlsx'):
+        #     contentLevel = self.checkXLSX(filepath)
         else:
             contentLevel = -1
 
@@ -227,10 +228,47 @@ class Example(QMainWindow, Ui_MainWindow):
             wb = openpyxl.load_workbook(filepath)
         except Exception as e:
             self.resultArray.append([filepath, 2, e])
+            return 0
 
         # 获取各个工作表
-
+        for sheet in wb:
+            tmp = re.sub(self.resymbols2, '', sheet.title)
+            if(tmp.find('秘密') != -1 or \
+                tmp.find('机密') != -1 or \
+                tmp.find('绝密') != -1):
+                resultLevel = 3
+                return resultLevel
+            elif(tmp.find('内部') != -1):
+                resultLevel = 2
         # for 遍历分析
+        # column 列  row 行
+        for sheet in wb:
+            for i in range(1, sheet.max_column + 1):
+                for j in range(1, sheet.max_row + 1):
+                    # print('[{0},{1}]={2}'.format(i, j, sheet.cell(i, j).value))
+                    v1 = sheet.cell(i, j).value
+                    # print(type(sheet.cell(i, j).value))
+                    if(type(v1) == str):
+                        sheetText = re.sub(self.resymbols2, '', v1)
+                        if(sheetText.find('秘密') != -1 or \
+                            sheetText.find('机密') != -1 or \
+                            sheetText.find('绝密') != -1):
+                            resultLevel = 3
+                            return resultLevel
+                        elif(sheetText.find('内部') != -1):
+                            resultLevel = 2
+        # for 公开
+        for sheet in wb:
+            for i in range(1, sheet.max_column + 1):
+                for j in range(1, sheet.max_row + 1):
+                    v1 = sheet.cell(i, j).value
+                    if(type(v1) == str):
+                        sheetText = re.sub(self.resymbols2, '', sheet.cell(i, j).value)
+                        if(sheetText.find('公开') == 0):
+                            if(resultLevel == 2):
+                                self.resultArray.append([filepath, 2, '公开密级中存在内部字眼'])
+                            return 1
+            break
 
         return resultLevel
 
@@ -271,7 +309,7 @@ class Example(QMainWindow, Ui_MainWindow):
         # read text
         for each in newdocx.paragraphs:
             contentText += each.text
-        content = re.sub(self.resymbols2Text, '', contentText)
+        content = re.sub(self.resymbols2, '', contentText)
         if(content.find('秘密') != -1 \
             or content.find('机密') != -1 \
             or content.find('绝密') != -1 ):
@@ -289,7 +327,7 @@ class Example(QMainWindow, Ui_MainWindow):
             for i in range(0, len(t.rows)):
                 for j in range(0, len(t.columns)):
                     cellText = t.cell(i, j).text
-                    cellText = re.sub(self.resymbols2Title, '', cellText)
+                    cellText = re.sub(self.resymbols2, '', cellText)
                     if(cellText.find('秘密') != -1 \
                         or cellText.find('机密') != -1 \
                         or cellText.find('绝密') != -1 ):
@@ -299,25 +337,27 @@ class Example(QMainWindow, Ui_MainWindow):
                         resultLevel = 2
         if(len(newdocx.tables)):
             t0 = newdocx.tables[0]
-            for i in range(0, len(t0.rows)):
-                for j in range(0, len(t0.columns)):
-                    cellText = t0.cell(i, j).text
-                    cellText = re.sub(self.resymbols2Title, '', cellText)
+            for i in range(0, len(t0.columns)):
+                for j in range(0, len(t0.rows)):
+                    cellText = t0.cell(j, i).text
+                    cellText = re.sub(self.resymbols2, '', cellText)
                     if(cellText.find('公开') == 0):
                         if(resultLevel == 2):
-                            return 2
-                        else:
-                            return 1
+                            self.resultArray.append([filepath, 2, '公开密级中存在内部字眼'])
+                        return 1
         return resultLevel
+
 
     def checkTXT(self, filepath):
         gbkflag = 0
         utf8flag = 0
+        nbflag = 0
+        gkflag = 0
         # gbk try read txt
         try:
             with open(filepath, 'r', encoding='gbk') as f:
                 content = f.read(-1)
-                content = re.sub(self.resymbols2Text, '', content)
+                content = re.sub(self.resymbols2, '', content)
             gbkflag = 1
         except Exception as e:
             # print(e)
@@ -329,7 +369,7 @@ class Example(QMainWindow, Ui_MainWindow):
             try:
                 with open(filepath, 'r', encoding='utf-8') as f:
                     content = f.read(-1)
-                    content = re.sub(self.resymbols2Text, '', content)
+                    content = re.sub(self.resymbols2, '', content)
                 utf8flag = 1
             except Exception as e:
                 # print(e)
@@ -341,9 +381,16 @@ class Example(QMainWindow, Ui_MainWindow):
                 or content.find('机密') != -1 \
                 or content.find('绝密') != -1 ):
                 return 3
-            elif(content.find('内部') != -1):
+            if(content.find('内部') != -1):
+                nbflag = 1
+            if(content.find('公开') != -1):
+                gkflag = 1
+            if(nbflag and gbkflag):
+                self.resultArray.append([filepath, 2, '同时存在公开和内部字眼'])
+                return 0
+            elif(nbflag):
                 return 2
-            elif(content.find('公开') == 0):
+            elif(gkflag):
                 return 1
             else:
                 return 0
