@@ -8,6 +8,7 @@ import re
 import docx
 from win32com import client
 import openpyxl
+import xlrd
 
 
 
@@ -174,14 +175,18 @@ class Example(QMainWindow, Ui_MainWindow):
             contentLevel, contentTrueLevel = self.checkTXT(filepath)
         elif(suffix[1] == '.docx'):
             contentLevel, contentTrueLevel = self.checkDOCX(filepath)
-        # elif(suffix[1] == '.doc'):
-        #     contentLevel = self.checkDOC(filepath)
-        # elif(suffix[1] == '.xlsx'):
-        #     contentLevel = self.checkXLSX(filepath)
-        # elif(suffix[1] == '.pdf'):
-        #     self.resultArray.append([filepath, 2, 'pdf文件需要手动确认'])
-        # elif(suffix[1] == '.exe'):
-        #     self.resultArray.append([filepath, 2, '存在exe文件'])
+        elif(suffix[1] == '.doc'):
+            contentLevel, contentTrueLevel = self.checkDOC(filepath)
+        elif(suffix[1] == '.xlsx'):
+            contentLevel, contentTrueLevel = self.checkXLSX(filepath)
+        elif(suffix[1] == '.xls'):
+            contentLevel, contentTrueLevel = self.checkXLS(filepath)
+        elif(suffix[1] == '.pdf'):
+            self.resultArray.append([filepath, 2, 'pdf文件需要手动确认'])
+        elif(suffix[1] == '.exe'):
+            self.resultArray.append([filepath, 2, '存在exe文件'])
+        elif(suffix[1] == '.csv'):
+            contentLevel, contentTrueLevel = self.checkTXT(filepath)
         else:
             contentLevel = -1
 
@@ -251,14 +256,66 @@ class Example(QMainWindow, Ui_MainWindow):
         else:
             self.resultArray.append([filepath, 2, '未知错误'])
 
+    def checkXLS(self, filepath):
+        resultLevel = 0
+        resultTrueLevel = 0
+
+        try:
+            wb = xlrd.open_workbook(filepath)
+            sheetnames = wb.sheet_names()
+        except Exception as e:
+            self.resultArray.append([filepath, 2, e])
+            return resultLevel, resultTrueLevel
+        for sheetname in sheetnames:
+            tmp = re.sub(self.resymbols2, '', sheetname)
+            if(tmp.find('秘密') != -1 or \
+                tmp.find('机密') != -1 or \
+                tmp.find('绝密') != -1):
+                resultLevel |= 0x04
+                return resultLevel
+            if(tmp.find('内部') != -1):
+                resultLevel |= 0x02
+            if(tmp.find('公开') != -1):
+                resultLevel |= 0x01
+        for sheetname in sheetnames:
+            sheet = wb.sheet_by_name(sheetname)
+            for i in range(sheet.nrows):
+                for j in range(sheet.ncols):
+                    v1 = sheet.cell(i, j).value
+                    if(type(v1) == str):
+                        sheetText = re.sub(self.resymbols2, '', v1)
+                        if(sheetText.find('秘密') != -1 or \
+                            sheetText.find('机密') != -1 or \
+                            sheetText.find('绝密') != -1):
+                            resultLevel |= 0x04
+                        if(sheetText.find('内部') != -1):
+                            resultLevel |= 0x02
+                        if(sheetText.find('公开') != -1):
+                            resultLevel |= 0x01
+        firstsheet = wb.sheet_by_name(sheetnames[0])
+        for i in range(firstsheet.nrows):
+            for j in range(firstsheet.ncols):
+                v1 = firstsheet.cell(i, j).value
+                if(type(v1) == str):
+                    sheetText = re.sub(self.resymbols2, '', firstsheet.cell(i, j).value)
+                    if(sheetText.find('内部') == 0):
+                        resultTrueLevel = 2
+                        return resultLevel, resultTrueLevel
+                    elif(sheetText.find('公开') == 0):
+                        resultTrueLevel = 1
+                        return resultLevel, resultTrueLevel
+
+        return resultLevel, resultTrueLevel
+
     def checkXLSX(self, filepath):
         # workbook = openpyxl.load_workbook(filepath + '123.xlsx')
         resultLevel = 0
+        resultTrueLevel = 0
         try:
             wb = openpyxl.load_workbook(filepath)
         except Exception as e:
             self.resultArray.append([filepath, 2, e])
-            return 0
+            return resultLevel, resultTrueLevel
 
         # 获取各个工作表
         for sheet in wb:
@@ -266,10 +323,12 @@ class Example(QMainWindow, Ui_MainWindow):
             if(tmp.find('秘密') != -1 or \
                 tmp.find('机密') != -1 or \
                 tmp.find('绝密') != -1):
-                resultLevel = 3
+                resultLevel |= 0x04
                 return resultLevel
-            elif(tmp.find('内部') != -1):
-                resultLevel = 2
+            if(tmp.find('内部') != -1):
+                resultLevel |= 0x02
+            if(tmp.find('公开') != -1):
+                resultLevel |= 0x01
         # for 遍历分析
         # column 列  row 行
         for sheet in wb:
@@ -283,10 +342,11 @@ class Example(QMainWindow, Ui_MainWindow):
                         if(sheetText.find('秘密') != -1 or \
                             sheetText.find('机密') != -1 or \
                             sheetText.find('绝密') != -1):
-                            resultLevel = 3
-                            return resultLevel
-                        elif(sheetText.find('内部') != -1):
-                            resultLevel = 2
+                            resultLevel |= 0x04
+                        if(sheetText.find('内部') != -1):
+                            resultLevel |= 0x02
+                        if(sheetText.find('公开') != -1):
+                            resultLevel |= 0x01
         # for 公开
         for sheet in wb:
             for i in range(1, sheet.max_column + 1):
@@ -294,35 +354,37 @@ class Example(QMainWindow, Ui_MainWindow):
                     v1 = sheet.cell(i, j).value
                     if(type(v1) == str):
                         sheetText = re.sub(self.resymbols2, '', sheet.cell(i, j).value)
-                        if(sheetText.find('公开') == 0):
-                            if(resultLevel == 2):
-                                self.resultArray.append([filepath, 2, '公开密级中存在内部字眼'])
-                            return 1
+                        if(sheetText.find('内部') == 0):
+                            resultTrueLevel = 2
+                            return resultLevel, resultTrueLevel
+                        elif(sheetText.find('公开') == 0):
+                            resultTrueLevel = 1
+                            return resultLevel, resultTrueLevel
             break
-
-        return resultLevel
+        return resultLevel, resultTrueLevel
 
     def checkDOC(self, filepath):
+        resultLevel = 0
+        resultTrueLevel = 0
         try:
             a = os.path.split(filepath)
             b = os.path.splitext(a[-1])[0]
             newdocx = "{}\\{}----.docx".format(a[0], b)
         except Exception as e:
             self.resultArray.append([filepath, 2, e])
-            return 0
+            return resultLevel, resultTrueLevel
         try:
             word = client.Dispatch("Word.Application")
             doc = word.Documents.Open(filepath)
             doc.SaveAs(newdocx, 12)
             doc.Close()
             word.Quit()
-            resultLevel = self.checkDOCX(newdocx, 0)
+            resultLevel, resultTrueLevel = self.checkDOCX(newdocx, 0)
             time.sleep(1)
             os.remove(newdocx)
         except Exception as e:
             self.resultArray.append([filepath, 2, e])
-            resultLevel = 0
-        return resultLevel
+        return resultLevel, resultTrueLevel
 
     def checkDOCX(self, filepath, flag = 1):
         contentText = ''
