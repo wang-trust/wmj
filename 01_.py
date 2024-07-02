@@ -82,7 +82,7 @@ class Example(QMainWindow, Ui_MainWindow):
             self.fileCheckPath = file_path
 
     def exchangeWritePath(self):
-        file_path = self.lineEdit.text().strip()
+        file_path = self.lineEdit_2.text().strip()
         if(file_path):
             self.fileWritePath = file_path
 
@@ -491,10 +491,51 @@ class Example(QMainWindow, Ui_MainWindow):
     # core business------------------------------------
 
 
+    def runWritePath(self):
+        # get array
+        if not self.fileWritePath:
+            self.wlog(2, self.fileWritePath + 'File path error')
+            return
+        self.fileWriteArray = []
+        try:
+            # judge self.fileCheckPath is right ?
+            judgetemp = os.listdir(self.fileWritePath)
+            self.recursivePath(self.fileWritePath, self.fileWriteArray)
+        except Exception as e:
+            self.wlog(2, e)
+            return
+        # self.printArray(self.fileWriteArray)
 
+        print(self.fileCheckPath)
+        print(self.fileWritePath)
+
+        # core logic
+        for each in self.fileWriteArray:
+            tempfile = os.path.normpath(each)
+            self.writeFile(tempfile)
+
+        # log
+        
+
+    def writeFile(self, filepath):
+        print(filepath)
+        return
 
 
     # helper function --------------------------------------
+    def wlog(self, num, msg):
+        '''0  1  2  3  4'''
+        timestr = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+        if(num == 0):
+            self.log.write('INFO: {0}, {1}.\n'.format(timestr, msg))
+        elif(num == 1):
+            self.log.write('WARNING: {0}, {1}.\n'.format(timestr, msg))
+        elif(num == 2):
+            self.log.write('ERROR: {0}, {1}.\n'.format(timestr, msg))
+        elif(num == 3):
+            self.log.write('FATAL: {0}, {1}.\n'.format(timestr, msg))
+        self.log.flush()
+            
     def writeLog(self):
         infonum = 0
         warningnum = 0
@@ -522,11 +563,7 @@ class Example(QMainWindow, Ui_MainWindow):
         os.system('start notepad result.log')
         print('Run over...')
 
-    def runWritePath(self):
-        if self.fileWritePath:
-            self.fileWriteArray = []
-            self.recursivePath(self.fileWritePath, self.fileWriteArray)
-            self.printArray(self.fileWriteArray)
+
 
     def recursivePath(self, filepath, fileArray):
         if(os.path.isdir(filepath)):
