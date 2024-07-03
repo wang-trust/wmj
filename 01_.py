@@ -514,12 +514,34 @@ class Example(QMainWindow, Ui_MainWindow):
             tempfile = os.path.normpath(each)
             self.writeFile(tempfile)
 
-        # log
+        # check
+        
         
 
     def writeFile(self, filepath):
-        print(filepath)
-        return
+        # print(filepath)
+        filelist = os.path.split(filepath)
+        suffix = os.path.splitext(filelist[1])
+        simpleName = re.sub(self.resymbols2, '', suffix[0])
+
+        if(self.writeLevel == 1):
+            keyword = '公开'
+        else:
+            keyword = '内部'
+        if(simpleName.find(keyword) == 0 or simpleName.endswith(keyword)):
+            print('{0}:{1} alread exist'.format(filepath, keyword))
+            self.wlog(0, '{0}:{1} alread exist'.format(filepath, keyword))
+            return
+        else:
+            newName = filelist[0] + os.sep + keyword + '-' + suffix[0] + suffix[1]
+        try:
+            os.rename(filepath, newName)
+            self.wlog(0, '{0}:{1} 添加成功'.format(filepath, keyword))
+        except Exception as e:
+            self.wlog(2, '{0}:{1},{2}'.format(filepath, keyword, e))
+
+
+
 
 
     # helper function --------------------------------------
