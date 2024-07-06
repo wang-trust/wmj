@@ -38,8 +38,8 @@ class Example(QMainWindow, Ui_MainWindow):
         # self.resymbols2Text = '[\t\n- ]+'
 
         # for debug
-        self.log = open('run.log', 'a', encoding='utf-8')
-        # self.runCheckPath = 'C:\\Users\\goupi\\Desktop\\qt5\\dist\\'
+        self.logpath = 'result.log'
+        self.log = open(self.logpath, 'w', encoding='utf-8')
 
     def ctrlConnect(self):
         self.pushButton.clicked.connect(self.setCheckPath)
@@ -79,12 +79,24 @@ class Example(QMainWindow, Ui_MainWindow):
     def exchangeCheckPath(self):
         file_path = self.lineEdit.text().strip()
         if(file_path):
-            self.fileCheckPath = file_path
+            fp = os.path.split(file_path)
+            if(fp[1]):
+                os.chdir(fp[0])
+                self.fileCheckPath = fp[1]
+            else:
+                self.fileCheckPath = file_path
+            self.lineEdit.setText(file_path)
 
     def exchangeWritePath(self):
         file_path = self.lineEdit_2.text().strip()
         if(file_path):
-            self.fileWritePath = file_path
+            fp = os.path.split(file_path)
+            if(fp[1]):
+                os.chdir(fp[0])
+                self.fileWritePath = fp[1]
+            else:
+                self.fileWritePath = file_path
+            self.lineEdit_2.setText(file_path)
 
     def setCheckLevel(self):
         com = self.comboBox.currentText()
@@ -104,40 +116,47 @@ class Example(QMainWindow, Ui_MainWindow):
 
     # core business------------------------------------
     # core logical for check dic
-    def runCheckPath(self):
+    def runCheckPath(self, file_path = None, run_level = None):
         # clear
         self.resultArray = []
+        self.fileCheckArray = []
+
+        runpath = file_path if file_path else self.fileCheckPath
+        runLevel = run_level if run_level else self.checkLevel
+        self.log.write('Check Function Start: \n')
 
         # get array
-        if not self.fileCheckPath:
-            self.resultArray.append([self.fileCheckPath, 2, 'File path error.'])
+        if not runpath:
+            self.resultArray.append([runpath, 2, 'File path error.'])
             self.writeLog()
             return
-        self.fileCheckArray = []
+        
         try:
-            # judge self.fileCheckPath is right ?
-            judgetemp = os.listdir(self.fileCheckPath)
-            self.recursivePath(self.fileCheckPath, self.fileCheckArray)
+            # judge runpath is right ?
+            judgetemp = os.listdir(runpath)
+            self.recursivePath(runpath, self.fileCheckArray)
             # self.printArray(self.fileCheckArray)
         except Exception as e:
-            self.resultArray.append([self.fileCheckPath, 2, e])
+            self.resultArray.append([runpath, 2, e])
             self.writeLog()
             return
 
         # core function
         for each in self.fileCheckArray:
             tempfile = os.path.normpath(each)
-            self.checkFile(tempfile)
+            self.checkFile(tempfile, runLevel)
         # temp = os.path.normpath(self.fileCheckArray[0])
         # filestr = 'C:\\Users\\goupi\\Desktop\\electron\\demo11\\dist\\1_().rar.part1'
         # self.checkFile(filestr)
 
         # write log
         self.writeLog()
+        os.system('start notepad ' + self.logpath)
+        print('Run over...')
 
-    def checkFile(self, filepath):
+    def checkFile(self, filepath, runLevel):
         # clear other symbols
-        titleLevel = self.checkLevel
+        titleLevel = runLevel
         nameLevel = 0
         contentLevel = -1
         nameTrueLevel = 0
@@ -182,7 +201,7 @@ class Example(QMainWindow, Ui_MainWindow):
         elif(suffix[1] == '.xls'):
             contentLevel, contentTrueLevel = self.checkXLS(filepath)
         elif(suffix[1] == '.pdf'):
-            self.resultArray.append([filepath, 2, 'pdf文件需要手动确认'])
+            self.resultArray.append([filepath, 1, 'pdf文件需要手动确认'])
         elif(suffix[1] == '.exe'):
             self.resultArray.append([filepath, 2, '存在exe文件'])
         elif(suffix[1] == '.csv'):
@@ -193,7 +212,6 @@ class Example(QMainWindow, Ui_MainWindow):
         # make result
         self.judgeResult(filepath, titleLevel, nameLevel, contentLevel, nameTrueLevel, contentTrueLevel)
     
-
     def judgeResult(self, filepath, titleLevel, nameLevel, contentLevel, nameTrueLevel, contentTrueLevel):
         if(contentLevel >= 4):
             self.resultArray.append([filepath, 3, '文件内部出现秘密字眼'])
@@ -492,6 +510,7 @@ class Example(QMainWindow, Ui_MainWindow):
 
 
     def runWritePath(self):
+        self.log.write('Write Function Start: \n')
         # get array
         if not self.fileWritePath:
             self.wlog(2, self.fileWritePath + 'File path error')
@@ -504,30 +523,40 @@ class Example(QMainWindow, Ui_MainWindow):
         except Exception as e:
             self.wlog(2, e)
             return
-        # self.printArray(self.fileWriteArray)
-
-        print(self.fileCheckPath)
-        print(self.fileWritePath)
 
         # core logic
+        if(self.writeLevel == 1):
+            keyword = '公开'
+        else:
+            keyword = '内部'
         for each in self.fileWriteArray:
             tempfile = os.path.normpath(each)
-            self.writeFile(tempfile)
-
+            self.writeFile(tempfile, keyword)
+        # write this dic
+        if(self.fileWritePath.find(keyword) == 0 or self.fileWritePath.endswith(keyword)):
+            self.wlog(0, '{0}:{1} alread exist'.format(self.fileWritePath, keyword))
+            newDic = self.fileWritePath
+        else:
+            newDic = keyword + '-' + self.fileWritePath
+            os.rename(self.fileWritePath, newDic)
+        self.log.write('\n')
         # check
+        self.runCheckPath(newDic, self.writeLevel)
+
         
         
 
-    def writeFile(self, filepath):
+    def writeFile(self, filepath, keyword):
         # print(filepath)
         filelist = os.path.split(filepath)
         suffix = os.path.splitext(filelist[1])
         simpleName = re.sub(self.resymbols2, '', suffix[0])
 
-        if(self.writeLevel == 1):
-            keyword = '公开'
-        else:
-            keyword = '内部'
+        # Write to file content
+        if(suffix[1] == '.txt'):
+            pass
+
+        # Write to file name
         if(simpleName.find(keyword) == 0 or simpleName.endswith(keyword)):
             print('{0}:{1} alread exist'.format(filepath, keyword))
             self.wlog(0, '{0}:{1} alread exist'.format(filepath, keyword))
@@ -539,9 +568,6 @@ class Example(QMainWindow, Ui_MainWindow):
             self.wlog(0, '{0}:{1} 添加成功'.format(filepath, keyword))
         except Exception as e:
             self.wlog(2, '{0}:{1},{2}'.format(filepath, keyword, e))
-
-
-
 
 
     # helper function --------------------------------------
@@ -563,29 +589,29 @@ class Example(QMainWindow, Ui_MainWindow):
         warningnum = 0
         errornum = 0
         fatalnum = 0
-        with open('result.log', 'w', encoding='utf-8') as f:
-            timestr = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
-            f.write('Run time: {0}\n'.format(timestr))
-            for each in self.resultArray:
-                if(each[1] == 0):
-                    f.write('INFO: {0} {1}\n'.format(os.path.abspath(each[0]), each[2]))
-                    infonum += 1
-                elif(each[1] == 1):
-                    f.write('WARNING: {0} {1}\n'.format(os.path.abspath(each[0]), each[2]))
-                    warningnum += 1
-                elif(each[1] == 2):
-                    f.write('ERROR: {0} {1}\n'.format(os.path.abspath(each[0]), each[2]))
-                    errornum += 1
-                elif(each[1] == 3):
-                    f.write('FATAL: {0} {1}\n'.format(os.path.abspath(each[0]), each[2]))
-                    fatalnum += 1
-            
-            f.write('\nResult: INFO: {0}, WARNING: {1}, ERROR: {2}, FATAL: {3}\n\n' \
-                .format(infonum, warningnum, errornum, fatalnum))
-        os.system('start notepad result.log')
-        print('Run over...')
+        # with open('result.log', 'w', encoding='utf-8') as f:
 
-
+        timestr = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+        self.log.write('Check Function Run time: {0}\n'.format(timestr))
+        for each in self.resultArray:
+            if(each[1] == 0):
+                self.log.write('INFO: {0} {1}\n'.format(os.path.abspath(each[0]), each[2]))
+                infonum += 1
+            elif(each[1] == 1):
+                self.log.write('WARNING: {0} {1}\n'.format(os.path.abspath(each[0]), each[2]))
+                warningnum += 1
+            elif(each[1] == 2):
+                self.log.write('ERROR: {0} {1}\n'.format(os.path.abspath(each[0]), each[2]))
+                errornum += 1
+            elif(each[1] == 3):
+                self.log.write('FATAL: {0} {1}\n'.format(os.path.abspath(each[0]), each[2]))
+                fatalnum += 1
+        
+        self.log.write('\nResult: INFO: {0}, WARNING: {1}, ERROR: {2}, FATAL: {3}\n' \
+            .format(infonum, warningnum, errornum, fatalnum))
+        self.log.write('WARNING、ERROR和FATAL中的每一项内容一定要确认！！！\n')
+        self.log.write('*******************************************\n\n')
+        self.log.flush()
 
     def recursivePath(self, filepath, fileArray):
         if(os.path.isdir(filepath)):
