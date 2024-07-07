@@ -1,0 +1,51 @@
+body {
+  font-family: "Microsoft YaHei";
+  font-size: 16rem;
+  color: #333;
+}
+
+html {
+  font-size: 0.1333333vw;
+}
+
+.content {
+  display: flex;
+  justify-content: space-evenly;
+  margin: 1rem auto;
+}
+
+.w-btn {
+  height: 2rem;
+  line-height: 2rem;
+  width: 6rem;
+  border-radius: 0.2rem;
+  user-select: none;
+}
+
+.w-btn:hover {
+  background-color: #f08080;
+  cursor: default;
+}
+
+.flag {
+  width: 6rem;
+  height: 2rem;
+  line-height: 2rem;
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.file-input {
+  width: 12rem;
+}
+
+.select-level {
+  width: 4rem;
+}
+
+.info {
+  position: absolute;
+  bottom: 0.5rem;
+  right: 2rem;
+}

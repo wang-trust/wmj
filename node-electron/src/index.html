@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Hello World!</title>
+    <link rel="stylesheet" href="index.css" />
+    <link rel="stylesheet" href="reset.css">
+</head>
+
+<body>
+    <div class="content">
+        <div class="flag">密级审查：</div>
+        <select name="useType" id="select-check" class="select-level">
+            <option value="1" class="select-tag" selected>公开</option>
+            <option value="2" class="select-tag">内部</option>
+        </select>
+        <input type="text" class="file-input" id="file-path-check">
+        <div class="w-btn" id="check-path">选择文件夹</div>
+        <div class="w-btn" id="run-check">执行</div>
+    </div>
+    <div class="content">
+        <div class="flag">密级设定：</div>
+        <select name="useType" id="select-write" class="select-level">
+            <option value="1" class="select-tag" selected>公开</option>
+            <option value="2" class="select-tag">内部</option>
+        </select>
+        <input type="text" class="file-input" id="file-path-write">
+        <div class="w-btn" id="write-path">选择文件夹</div>
+        <div class="w-btn" id="run-write">执行</div>
+    </div>
+    <div class="info">By 王富亮</div>
+
+
+
+    <script src="./render.js"></script>
+</body>
+
+</html>
