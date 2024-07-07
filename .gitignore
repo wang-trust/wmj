@@ -6,4 +6,5 @@ __pycache__/
 *.pyc
 build/
 *.spec
-electron/
+electron/node_modules/
+*.git
