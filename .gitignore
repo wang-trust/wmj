@@ -1,4 +1,4 @@
-dist/
+
 .vscode/
 *.log
 *.ui
@@ -7,4 +7,4 @@ __pycache__/
 build/
 *.spec
 electron/node_modules/
-*.git
+*.exe
